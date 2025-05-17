@@ -8,7 +8,7 @@ RUN apt update && apt install -y \
 
 
 
-COPY src/antink.c /app/antink.c
+COPY antink.c /app/antink.c
 
 WORKDIR /app
 
