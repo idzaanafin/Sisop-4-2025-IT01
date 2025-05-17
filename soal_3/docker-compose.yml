@@ -1,0 +1,19 @@
+
+services:
+  antink:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    privileged: true
+    cap_add:
+      - SYS_ADMIN
+    security_opt:
+      - apparmor:unconfined
+    volumes:
+      - ./it24_host:/original_files:ro    
+      - ./antink_mount:/antink_mount      
+      - ./antink-logs:/var/log            
+    devices:
+      - /dev/fuse
+    container_name: antink
+    restart: always
