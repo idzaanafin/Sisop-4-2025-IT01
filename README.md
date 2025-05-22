@@ -630,6 +630,9 @@ int main(int argc, char *argv[]) {
 
   ![image](https://github.com/user-attachments/assets/284eebd6-6523-490b-9762-056ec4e069f5)
 
+### Cek log
+  ![image](https://github.com/user-attachments/assets/7abec00e-a3e2-453b-a4f7-23fcf1c6c71f)
+
 
 
 # Soal 4
