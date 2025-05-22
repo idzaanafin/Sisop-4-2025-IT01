@@ -615,16 +615,17 @@ int main(int argc, char *argv[]) {
 }
 
 ```
-#### pada soal ini kita diperlukan untuk menjalankan FUSE melalui docker
+
+### pada soal ini kita diperlukan untuk menjalankan FUSE melalui docker
 
 - ![image](https://github.com/user-attachments/assets/d4dca1bd-3d46-4ca7-b131-60aecd018eab)
   Struktur Directory
 
-#### Lihat file via docker 
+### Lihat file via docker 
   Disini file yang ada "nafis" atau "kimcun" nama dari filenya akan dibalik 
   ![image](https://github.com/user-attachments/assets/26a7b5dd-852c-4876-ae79-ddb739dcbb1c)
 
-#### Enkripsi ROT13 untuk isi file yang bersih
+### Enkripsi ROT13 untuk isi file yang bersih
   Jika file tidak mengandung "nafis" atau "kimcun" untuk penamaan maka isi file akan di enkripsi ROT13
 
   ![image](https://github.com/user-attachments/assets/284eebd6-6523-490b-9762-056ec4e069f5)
