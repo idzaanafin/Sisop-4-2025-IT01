@@ -397,4 +397,50 @@ TIDAK BISA SELESAI KARENA PERMISSION DENIED
 
 # Soal 3
 
+### Dockerfile
+```
+
+FROM ubuntu:20.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt update && apt install -y \
+    gcc make libfuse3-dev fuse3 \
+    && rm -rf /var/lib/apt/lists/*
+
+
+COPY antink.c /app/antink.c
+
+WORKDIR /app
+
+RUN gcc antink.c -o antink -lfuse3
+
+CMD bash -c "mkdir -p /antink_mount && ./antink /antink_mount & tail -f /var/log/it24.log"
+
+```
+
+### Docker-compose.yml
+```
+
+services:
+  antink:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    privileged: true
+    cap_add:
+      - SYS_ADMIN
+    security_opt:
+      - apparmor:unconfined
+    volumes:
+      - ./it24_host:/original_files:ro    
+      - ./antink_mount:/antink_mount          
+      - ./antink-logs:/var/log            
+    devices:
+      - /dev/fuse
+    container_name: antink
+    restart: always
+
+```
+
 # Soal 4
