@@ -395,7 +395,7 @@ int main(int argc, char *argv[]) {
 TIDAK BISA SELESAI KARENA PERMISSION DENIED 
 # Soal 2
 Full Code
-### Baymax.c
+## Baymax.c
 ```
 #define FUSE_USE_VERSION 35
 #include <fuse3/fuse.h>
@@ -608,6 +608,55 @@ int main(int argc, char *argv[]) {
 }
 
 ```
+Soal ini meminta kita untuk menjankan sebuah sistem FUSE untuk menggabungkan dan memecah file 
+
+### struktur :
+```
+├── Baymax_output.jpeg
+├── activity.log
+├── baymax.c
+├── baymaxfs
+├── mount_dir
+│   └── Baymax.jpeg
+└── relics
+    ├── Baymax.jpeg.000
+    ├── Baymax.jpeg.001
+    ├── Baymax.jpeg.002
+    ├── Baymax.jpeg.003
+    ├── Baymax.jpeg.004
+    ├── Baymax.jpeg.005
+    ├── Baymax.jpeg.006
+    ├── Baymax.jpeg.007
+    ├── Baymax.jpeg.008
+    ├── Baymax.jpeg.009
+    ├── Baymax.jpeg.010
+    ├── Baymax.jpeg.011
+    ├── Baymax.jpeg.012
+    └── Baymax.jpeg.013
+```
+## Penjelasan kode: 
+### logging
+```
+void log_activity(const char *fmt, ...) {
+    FILE *log = fopen(LOG_FILE, "a");
+    if (!log) return;
+
+    time_t now = time(NULL);
+    struct tm *t = localtime(&now);
+    fprintf(log, "[%04d-%02d-%02d %02d:%02d:%02d] ",
+            t->tm_year + 1900, t->tm_mon + 1, t->tm_mday,
+            t->tm_hour, t->tm_min, t->tm_sec);
+
+    va_list args;
+    va_start(args, fmt);
+    vfprintf(log, fmt, args);
+    fprintf(log, "\n");
+    va_end(args);
+    fclose(log);
+}
+```
+
+
 # Soal 3
 
 ### Dockerfile
