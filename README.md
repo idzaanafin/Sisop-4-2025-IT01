@@ -394,7 +394,220 @@ int main(int argc, char *argv[]) {
 ```
 TIDAK BISA SELESAI KARENA PERMISSION DENIED 
 # Soal 2
+Full Code
+### Baymax.c
+```
+#define FUSE_USE_VERSION 35
+#include <fuse3/fuse.h>
+#include <stdio.h>
+#include <string.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <dirent.h>
+#include <time.h>
+#include <sys/stat.h>
+#include <ctype.h>
 
+#define RELICS_DIR "relics"
+#define LOG_FILE "activity.log"
+#define MAX_FRAGMENT_SIZE 1024
+#define MAX_FRAGMENTS 1000
+
+void log_activity(const char *fmt, ...) {
+    FILE *log = fopen(LOG_FILE, "a");
+    if (!log) return;
+
+    time_t now = time(NULL);
+    struct tm *t = localtime(&now);
+    fprintf(log, "[%04d-%02d-%02d %02d:%02d:%02d] ",
+            t->tm_year + 1900, t->tm_mon + 1, t->tm_mday,
+            t->tm_hour, t->tm_min, t->tm_sec);
+
+    va_list args;
+    va_start(args, fmt);
+    vfprintf(log, fmt, args);
+    fprintf(log, "\n");
+    va_end(args);
+    fclose(log);
+}
+
+static int fs_getattr(const char *path, struct stat *st, struct fuse_file_info *fi) {
+    memset(st, 0, sizeof(struct stat));
+    if (strcmp(path, "/") == 0) {
+        st->st_mode = S_IFDIR | 0755;
+        st->st_nlink = 2;
+        return 0;
+    } else {
+        char base[256];
+        snprintf(base, sizeof(base), "%s", path + 1);
+        char frag_path[512];
+        snprintf(frag_path, sizeof(frag_path), "%s/%s.000", RELICS_DIR, base);
+
+        FILE *f = fopen(frag_path, "rb");
+        if (!f) return -ENOENT;
+
+        st->st_mode = S_IFREG | 0444;
+        st->st_nlink = 1;
+
+        size_t total_size = 0;
+        for (int i = 0; i < MAX_FRAGMENTS; i++) {
+            snprintf(frag_path, sizeof(frag_path), "%s/%s.%03d", RELICS_DIR, base, i);
+            FILE *part = fopen(frag_path, "rb");
+            if (!part) break;
+            fseek(part, 0, SEEK_END);
+            total_size += ftell(part);
+            fclose(part);
+        }
+        st->st_size = total_size;
+        return 0;
+    }
+}
+
+static int fs_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
+                      off_t offset, struct fuse_file_info *fi, enum fuse_readdir_flags flags) {
+    if (strcmp(path, "/") != 0)
+        return -ENOENT;
+
+    filler(buf, ".", NULL, 0, 0);
+    filler(buf, "..", NULL, 0, 0);
+
+    DIR *dir = opendir(RELICS_DIR);
+    if (!dir) return -ENOENT;
+
+    struct dirent *dp;
+    char listed[256][256];
+    int listed_count = 0;
+
+    while ((dp = readdir(dir)) != NULL) {
+        if (strchr(dp->d_name, '.') == NULL) continue;
+        char name[256];
+        strncpy(name, dp->d_name, sizeof(name));
+        char *dot = strrchr(name, '.');
+        if (dot && strlen(dot) == 4 && isdigit(dot[1])) {
+            *dot = '\0';
+            int already_listed = 0;
+            for (int i = 0; i < listed_count; i++) {
+                if (strcmp(listed[i], name) == 0) {
+                    already_listed = 1;
+                    break;
+                }
+            }
+            if (!already_listed) {
+                strcpy(listed[listed_count++], name);
+                filler(buf, name, NULL, 0, 0);
+            }
+        }
+    }
+    closedir(dir);
+    return 0;
+}
+
+static int fs_open(const char *path, struct fuse_file_info *fi) {
+    (void) fi;
+    char base[256];
+    snprintf(base, sizeof(base), "%s", path + 1);
+    char frag_path[512];
+    snprintf(frag_path, sizeof(frag_path), "%s/%s.000", RELICS_DIR, base);
+
+    FILE *f = fopen(frag_path, "rb");
+    if (!f) return -ENOENT;
+    fclose(f);
+
+    log_activity("READ: %s", base);
+    return 0;
+}
+
+static int fs_read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fi) {
+    (void) fi;
+    size_t bytes_read = 0;
+    char base[256];
+    snprintf(base, sizeof(base), "%s", path + 1);
+
+    int start_frag = offset / MAX_FRAGMENT_SIZE;
+    int start_offset = offset % MAX_FRAGMENT_SIZE;
+
+    for (int i = start_frag; bytes_read < size; i++) {
+        char frag_path[512];
+        snprintf(frag_path, sizeof(frag_path), "%s/%s.%03d", RELICS_DIR, base, i);
+        FILE *part = fopen(frag_path, "rb");
+        if (!part) break;
+
+        fseek(part, (i == start_frag) ? start_offset : 0, SEEK_SET);
+        size_t to_read = size - bytes_read;
+        if (to_read > MAX_FRAGMENT_SIZE) to_read = MAX_FRAGMENT_SIZE;
+
+        size_t r = fread(buf + bytes_read, 1, to_read, part);
+        bytes_read += r;
+        fclose(part);
+
+        if (r < to_read) break;
+    }
+    return bytes_read;
+}
+
+static int fs_create(const char *path, mode_t mode, struct fuse_file_info *fi) {
+    (void) mode;
+    (void) fi;
+    return 0; // handled in write
+}
+
+static int fs_write(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fi) {
+    (void) fi;
+    if (offset != 0) return 0; // write only at creation time
+
+    char base[256];
+    snprintf(base, sizeof(base), "%s", path + 1);
+
+    int num_parts = 0;
+    for (size_t i = 0; i < size; i += MAX_FRAGMENT_SIZE, num_parts++) {
+        char frag_path[512];
+        snprintf(frag_path, sizeof(frag_path), "%s/%s.%03d", RELICS_DIR, base, num_parts);
+        FILE *f = fopen(frag_path, "wb");
+        if (!f) return -EIO;
+        size_t to_write = (size - i > MAX_FRAGMENT_SIZE) ? MAX_FRAGMENT_SIZE : size - i;
+        fwrite(buf + i, 1, to_write, f);
+        fclose(f);
+    }
+
+    log_activity("WRITE: %s -> %s.000 to %s.%03d", base, base, base, num_parts - 1);
+    return size;
+}
+
+static int fs_unlink(const char *path) {
+    char base[256];
+    snprintf(base, sizeof(base), "%s", path + 1);
+    char frag_path[512];
+
+    int i;
+    for (i = 0; i < MAX_FRAGMENTS; i++) {
+        snprintf(frag_path, sizeof(frag_path), "%s/%s.%03d", RELICS_DIR, base, i);
+        if (unlink(frag_path) != 0) break;
+    }
+
+    if (i == 0) return -ENOENT;
+
+    log_activity("DELETE: %s.000 - %s.%03d", base, base, i - 1);
+    return 0;
+}
+
+static const struct fuse_operations operations = {
+    .getattr = fs_getattr,
+    .readdir = fs_readdir,
+    .open    = fs_open,
+    .read    = fs_read,
+    .write   = fs_write,
+    .create  = fs_create,
+    .unlink  = fs_unlink,
+};
+
+int main(int argc, char *argv[]) {
+    umask(0);
+    return fuse_main(argc, argv, &operations, NULL);
+}
+
+```
 # Soal 3
 
 ### Dockerfile
